@@ -1,0 +1,729 @@
+#!/bin/bash
+
+############### General Information ####################
+# This script depends on Calibre (cross-platform ebook #
+# reader and manipulator) and standard UNIX tools like #
+# bash, sed, awk etc. We're use Calibre only to polish #
+# the resulting e-book.                                #
+#                                                      #
+# We need all files inside a directory which will have #
+# the same name of the compiled file.  The script will #
+# process the Markdown file and create this directory, #
+# with all necessary files.  Subsequent runs will only #
+# work inside the directory.                           #
+#                                                      #
+# The script requires at least one argument:  the name #
+# of a Markdown file,  which must be identified by the #
+# ".md" extension.                                     #
+########################################################
+
+##################### Dependences ######################
+# bash -- system shell (not tested with other shells)  #
+# Pandoc >= 1.13 (tested, older versions at your risk) #
+# Texlive (any recent version, preferably after 2011)  #
+# fontconfig                                           #
+# GNU coreutils (any version, busybox not tested)      #
+# sed                                                  #
+# awk                                                  #
+# perl rename                                          #
+# zip & unzip                                          #
+# calibre >= 1.22 (older versions known not to work)   #
+# ImageMagick's "identify" and "convert" utils         #
+# Inkscape (only for command line SVG manipulation)    #
+# kindlegen (OPTIONAL)                                 #
+########################################################
+
+# License: GPL version 2, available from
+# https://www.gnu.org/licenses/gpl-2.0.html
+
+############## Script requires one argument ############
+if [ -z "$1" ]
+then
+echo_err "
+
+      Usage:
+            "$(basename $0)" md_file
+                  for initial setup
+
+      "
+      exit 1
+fi
+########################################################
+
+############ Is the argument a Markdown file? ##########
+if   [ `echo "$1" | cut -d'.' -f2` != md ]; then
+echo "
+
+      ERROR:
+      I need a Markdown file as source.
+
+      "
+    exit 1
+fi
+########################################################
+
+########## Are we running for the first time? ##########
+WORKDIR=$(echo "$1" | cut -d'.' -f1)
+if [ -z "$2" ] && [ -f "$1" ]
+then
+SETUP=true
+fi
+########################################################
+
+### Either way, we are going to need these variables ###
+CONTENT=$WORKDIR/pages
+CSS=$WORKDIR/stylesheet.css
+MDATA=$WORKDIR/metadata.xml
+TPAGE=$WORKDIR/title_page.xhtml
+CPAGE=$WORKDIR/cover.xhtml
+EBOOK=$WORKDIR/$WORKDIR.epub
+KINDLE=$WORKDIR/$WORKDIR.azw3
+MOBI=$WORKDIR/$WORKDIR.mobi
+LATEX=$WORKDIR/$WORKDIR.tex
+TEXCONFIG=$WORKDIR/header.tex
+########################################################
+
+################ Are we creating a cover? ##############
+WORKDIR=$(echo "$1" | cut -d'.' -f1)
+if [ "$2" = "cover" ]
+then
+COVER=true
+fi
+########################################################
+
+######### It this is a setup run, build workdir ########
+if [ "$SETUP" = "true" ]
+then
+mkdir -p $CONTENT $FONTS
+awk '/\#\ /{n++}{print >"ch" n ".md" }' $1
+cp $1 $WORKDIR/$1.bak
+rename 's/\d+/sprintf("%03d",$&)/e' ch*.md
+mv ch*md "$CONTENT"
+echo "
+
+      Successfully prepared workdir.
+      Now run the script again to build.
+
+      Usage:
+            "$(basename $0)" md_file pdf
+                  for PDF output
+
+            "$(basename $0)" md_file ebook
+                  for ePUB + Kindle output
+
+            "$(basename $0)" md_file backup
+                  to backup working directory
+
+            "$(basename $0)" clean
+                  to remove generated ebooks
+
+      IMPORTANT! If you want to embed fonts,
+      Copy them into $FONTS
+      You must provide four styles (exactly four)
+      Regular(or Book), Italic (or Oblique)
+      Medium (or Bold), Medium Italic (or Bold Italic).
+
+      "
+fi
+########################################################
+
+############# Test if fonts were provided ##############
+if [ "$SETUP" = "true" ] && [ "$(ls -A $FONTS)" ]; then
+EMBED=true
+fi
+########################################################
+
+###### Get a generic font family for substitution ######
+if [ "$SETUP" = "true" ] && [ "$EMBED" = "true" ]; then
+echo "
+
+What kind of font are you embedding?
+1. Serif (like Times)
+2. Sans-Serif (like Arial)
+3. Monospaced (like Courier)
+"
+read -p "
+Your answer (1/2/3)
+" RESP
+if [ "$RESP" = "1" ]; then
+  FAMILY=serif
+elif [ "$RESP" = "2" ]; then
+  FAMILY=sans-serif
+else
+  FAMILY=monospace
+fi
+echo "
+
+      $FAMILY will be used as CSS backup
+
+      "
+fi
+########################################################
+
+###### Read font files, query styles and family ########
+if [ "$SETUP" = "true" ] && [ "$EMBED" = "true" ]; then
+FONT1=$(ls -1 "$FONTS" | sed -n '1{p;q}')
+FONT2=$(ls -1 "$FONTS" | sed -n '2{p;q}')
+FONT3=$(ls -1 "$FONTS" | sed -n '3{p;q}')
+FONT4=$(ls -1 "$FONTS" | sed -n '4{p;q}')
+FFACE=$(fc-query $FONT1  | grep family: | \
+      cut -d':' -f2 | cut -d'(' -f1)
+STYLE1=$(fc-query $FONT1 | grep style: | \
+      cut -d':' -f2 | cut -d'(' -f1 | sed 's/"//g')
+STYLE2=$(fc-query $FONT2 | grep style: | \
+      cut -d':' -f2 | cut -d'(' -f1 | sed 's/"//g')
+STYLE3=$(fc-query $FONT3 | grep style: | \
+      cut -d':' -f2 | cut -d'(' -f1 | sed 's/"//g')
+STYLE4=$(fc-query $FONT4 | grep style: | \
+      cut -d':' -f2 | cut -d'(' -f1 | sed 's/"//g')
+fi
+########################################################
+
+############ Font Embedding in Stylesheet ##############
+if [ "$SETUP" = "true" ] && [ "$EMBED" = "true" ]; then
+echo "/* Font embedding */
+@font-face {
+	font-family: "$FFACE";
+"$STYLE1"
+	src:url("$(basename $FONT1)");
+}
+@font-face {
+	font-family: "$FFACE";
+"$STYLE2"
+	src:url("$(basename $FONT2)");
+}
+@font-face {
+	font-family: "$FFACE";
+"$STYLE3"
+	src:url("$(basename $FONT3)");
+}
+@font-face {
+	font-family: "$FFACE";
+"$STYLE4"
+	src:url("$(basename $FONT4)");
+}
+" > "$CSS"
+sed 's/Regular Italic$/\tfont-style: italic;\n\tfont-weight: normal;/' "$CSS" > "$CSS".TMP ; mv "$CSS".TMP "$CSS"
+sed 's/Book Italic$/\tfont-style: italic;\n\tfont-weight: normal;/' "$CSS" > "$CSS".TMP ; mv "$CSS".TMP "$CSS"
+sed 's/Bold Italic$/\tfont-style: italic;\n\tfont-weight: bold;/' "$CSS" > "$CSS".TMP ; mv "$CSS".TMP "$CSS"
+sed 's/Regular$/\tfont-style: normal;\n\tfont-weight: normal;/'  "$CSS" > "$CSS".TMP ; mv "$CSS".TMP "$CSS"
+sed 's/Book$/\tfont-style: normal;\n\tfont-weight: normal;/' "$CSS" > "$CSS".TMP ; mv "$CSS".TMP "$CSS"
+sed 's/Bold$/\tfont-style: normal;\n\tfont-weight: bold;/' "$CSS" > "$CSS".TMP ; mv "$CSS".TMP "$CSS"
+fi
+########################################################
+
+############# The rest of the Stylesheet ###############
+if [ "$SETUP" = "true" ]; then
+echo "
+/* This defines styles and classes used in the book */
+body {
+	margin: 12px;
+	text-align: justify;
+	widows:  2;
+	orphans: 2;" >> $CSS
+if [ "$EMBED" = "true" ];
+then
+echo "	font-family: "$FFACE", "$FAMILY";
+}" >> $CSS
+else
+echo "	font-family: "$FAMILY";
+}" >> $CSS
+fi
+echo "
+img#cover {
+	margin: 0;
+	padding: 0
+}
+code {
+	font-family: monospace;
+	background: #ddd
+}
+h1 {
+	text-align: left;
+	page-break-before: always;
+}
+h2 {
+	text-align: left;
+}
+h3 {
+	text-align: left;
+}
+.titlepage * {
+	text-align: center!important
+}
+.title {
+	margin-top: 25%;
+}
+.author {
+	margin-top: 3ex
+}
+.titlepage hr {
+	padding: 0;
+	border: none;
+	border-top: medium double #333;
+	color: #333;
+	width: 40%;
+}
+.titlepage hr:after {
+	content: \"§\";
+	display: inline-block;
+	position: relative;
+	top: -0.7em;
+	font-size: 1.5em;
+	padding: 0 0.25em;
+	background: white;
+}
+.publisher {
+	margin-top: 20%
+}
+.date {
+	margin-top: 2ex
+}
+ol.toc {
+	padding: 0; margin: 0 auto 2ex 1em;
+}
+ol.toc li {
+	list-style-type: none;
+	margin: 0;
+	padding: 0;
+}
+" >> "$CSS"
+fi
+########################################################
+
+######## Writing Dublin Core Metadata to file ##########
+if [ "$SETUP" = "true" ] || [ "$2" = "pdf" ] || [ "$COVER" = "true" ]; then
+TITLE=$(sed -n '1{p;q}' $1 | cut -d"%" -f2 | sed "s/ //" )
+AUTHOR=$(sed -n '2{p;q}' $1 | cut -d"%" -f2 | sed "s/ //" )
+DATE=$(sed -n '3{p;q}' $1 | cut -d"%" -f2 | sed "s/ //" )
+if [ -z "$DATE" ]; then
+DATE=$(date +%F)
+fi
+PUBLISHER=$(sed -n '4{p;q}' $1 | cut -d"%" -f2 | sed "s/ //" )
+RIGHTS=$(sed -n '5{p;q}' $1 | cut -d"%" -f2 | sed "s/ //" )
+FILEAS=$(echo $AUTHOR | cut -d" " -f3)", "$(echo $AUTHOR | sed s/'\w*$'//)
+echo "
+
+      Document title: $TITLE
+      Document author: $AUTHOR
+      Published on: $DATE
+      Published by: $PUBLISHER
+      Licensed as: $RIGHTS
+      To be filed as: $FILEAS
+
+"
+read -p "
+
+      Is the information above correct? (y/n)
+
+" RESP
+if [ -z "$RESP" ]; then
+RESP=y
+fi
+if [ "$RESP" = "n" ]; then
+echo "
+
+      Please edit source file putting the information
+      in the corret order and format:
+
+      1. Document title                 "title:"
+      2. Author name                    "by:"
+      3. Date                           "date:"
+      4. Publisher URL                  "url:"
+      5. Content licensing              "rights:"
+
+      Information must be structured like this:
+
+      title:Document title
+
+      or this:
+
+      :Document title
+
+" exit 1
+else
+echo "<dc:title>$TITLE</dc:title>
+<dc:language>$LANG</dc:language>
+<dc:creator opf:file-as=\"$FILEAS\" opf:role=\"aut\">$AUTHOR</dc:creator>
+<dc:publisher>$PUBLISHER</dc:publisher>
+<dc:date opf:event=\"publication\">$DATE</dc:date>
+<dc:rights>$RIGHTS</dc:rights>
+" > "$MDATA"
+echo $(head -n 3 $1 > $CONTENT/header.md)
+fi
+fi
+########################################################
+
+######## Creating a proper cover image in SVG ##########
+if [ "$COVER" = "true" ]; then
+echo "
+      Will create a basic cover for the ebook.
+      You should create a better cover yourself.
+
+      Answer the following questions.
+"
+read -p "
+      Color of the cover spine (left narrow column).
+      In hexadecimal (#b22222) or named (red).
+
+" spinecolor
+read -p "
+      Color of the top area (where the title goes).
+      In hexadecimal (#8b0000) or named (red).
+
+" topcolor
+read -p "
+      Color for the cover text (all areas)
+      In hexadecimal (#ffffff) or named (red).
+
+" textcolor
+read -p "
+      First color for the cover gradient
+      In hexadecimal (#a22222) or named (red).
+
+" gradientcolor1
+read -p "
+      Second color for the cover gradient
+      In hexadecimal (#8b0000) or named (white).
+
+" gradientcolor2
+read -p "
+      Name of a bitmap file you want to use
+      to illustrate your cover (any format).
+
+      Defaults to: desenho.png
+      Must be in "$WORKDIR"
+
+" coverpic
+if [ -z "$coverpic" ]; then
+coverpic=desenho.png
+fi
+read -p "
+      Name of the font to be used in cover.
+      No need to escape if name contains spaces.
+
+      Defaults to: Helvetica, Arial, sans-serif
+
+" coverfont
+if [ -z "$coverfont" ]; then
+coverfont="Helvetica, Arial, sans-serif"
+fi
+echo "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
+<svg xmlns:dc=\"http://purl.org/dc/elements/1.1/\"
+   xmlns:cc=\"http://creativecommons.org/ns#\"
+   xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"
+   xmlns:svg=\"http://www.w3.org/2000/svg\"
+   xmlns=\"http://www.w3.org/2000/svg\"
+   xmlns:xlink=\"http://www.w3.org/1999/xlink\"
+   version=\"1.1\" id=\"svgcover\" width=\"524.40942\" height=\"744.09448\">
+<style type=\"text/css\">
+<![CDATA[
+#bottom{fill:url(#grad-bottom)}
+#top {fill:"$topcolor";}
+#spine {fill:"$spinecolor";}
+#title, #gen, #author, #url {font-family:"$coverfont";
+-inkscape-font-specification:"$coverfont";
+fill:"$textcolor";}
+#title{font-size:46px;font-weight:bold;}
+#author{font-size:30px;font-weight:bold;}
+#url{font-size:19px;font-weight:bold;}
+]]>
+</style>
+  <metadata id=\"metadata\"><rdf:RDF><cc:Work rdf:about=\"\">
+  <dc:format>image/svg+xml</dc:format>
+  <dc:type rdf:resource=\"http://purl.org/dc/dcmitype/StillImage\" />
+  </cc:Work></rdf:RDF></metadata>
+  <defs id=\"defs\">
+    <linearGradient id=\"gradient\">
+      <stop style=\"stop-color:"$gradientcolor1";\" offset=\"0\" />
+      <stop style=\"stop-color:"$gradientcolor2";\" offset=\"1\" />
+    </linearGradient>
+    <linearGradient xlink:href=\"#gradient\" id=\"grad-bottom\"
+       x1=\"386.45728\" y1=\"2956.2222\" x2=\"2835.4097\" y2=\"2956.2222\"
+       gradientUnits=\"userSpaceOnUse\" spreadMethod=\"reflect\" />
+  </defs>
+  <g id=\"bottom\" transform=\"matrix(0.18843861,0,0,0.16984425,-10,-20)\">
+  <rect id=\"bottom-in\" height=\"3100\" width=\"2447\" y=\"1411\" x=\"387\" /></g>
+  <g id=\"top\" transform=\"matrix(0.18496565,0,0,0.15236542,0,0)\">
+  <rect id=\"top-in\" height=\"1441\" width=\"2834\" y=\"0\" x=\"0\" /></g>
+  <g id=\"spine\" transform=\"matrix(0.15234865,0,0,0.16452914,0,0)\">
+  <rect id=\"spine-in\" height=\"4521.5903\" width=\"445\" y=\"0\" x=\"0\" /></g>
+  <text xml:space=\"preserve\" x=\"80\" y=\"60\"><tspan id=\"title\">"$TITLE"</tspan></text>
+  <text xml:space=\"preserve\" x=\"80\" y=\"120\"><tspan id=\"author\">"$AUTHOR"</tspan></text>
+  <image x=\"-20\" y=\"135\" width=\"450\" height=\"641\" xlink:href=\""$coverpic"\" />
+  <text xml:space=\"preserve\" x=\"215\" y=\"720\" id=\"url\"><tspan>"$PUBLISHER"</tspan></text>
+</svg>
+" > $WORKDIR/cover.svg
+inkscape -z -e $WORKDIR/cover.png -f $WORKDIR/cover.svg
+inkscape -z -A $WORKDIR/cover.pdf -f $WORKDIR/cover.svg
+# I have to kill inkscape manually because it does not
+# release the shell after finishing conversion.
+killall -q inkscape
+convert $WORKDIR/cover.png $WORKDIR/cover.jpg
+fi
+########################################################
+
+########### Making the ebook cover page ready ##########
+if [ "$COVER" = "true" ]; then
+cwidth=$(identify "$WORKDIR/cover.jpg" | cut -d'+' -f1 | cut -d'G' -f2 | cut -d' ' -f2 | cut -d'x' -f1)
+cheight=$(identify "$WORKDIR/cover.jpg" | cut -d'+' -f1 | cut -d'G' -f2 | cut -d' ' -f2 | cut -d'x' -f2)
+echo "
+      Cover image is
+      "$cwidth" pixels wide
+      "$cheight" pixels tall
+"
+sleep 3
+echo "
+
+      Will now create cover and title pages
+      in "$WORKDIR"
+
+"
+echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">
+<html xmlns=\"http://www.w3.org/1999/xhtml\">
+<head>
+  <meta http-equiv=\"Content-Type\" content=\"text/html\; charset=utf-8\" />
+  <meta http-equiv=\"Content-Style-Type\" content=\"text/css\" />
+  <meta name=\"generator\" content=\"pandoc\" />
+  <title></title>
+  <link rel=\"stylesheet\" type=\"text/css\" href=\"stylesheet.css\" />
+</head>
+<body>
+<div id=\"cover-image\">
+<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\" width=\"100%\" height=\"100%\" viewBox=\"0 0 "$cwidth" "$cheight"\" preserveAspectRatio=\"none\">
+<image width=\""$cwidth"\" height=\""$cheight"\" xlink:href=\"media/cover.jpg\"/>
+</svg>
+</div>
+</body>
+</html>" > $CPAGE
+echo "
+      Cover page ready.
+
+"
+echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">
+<html xmlns=\"http://www.w3.org/1999/xhtml\">
+<head>
+  <meta http-equiv=\"Content-Type\" content=\"text/html\; charset=utf-8\" />
+  <meta http-equiv=\"Content-Style-Type\" content=\"text/css\" />
+  <meta name=\"generator\" content=\"pandoc\" />
+  <title></title>
+  <link rel=\"stylesheet\" type=\"text/css\" href=\"stylesheet.css\" />
+</head>
+<body class=\"titlepage\">
+  <h1 class=\"title\">"$TITLE"</h1>
+  <h2 class=\"author\">"$AUTHOR"</h2>
+  <hr />
+  <p class=\"publisher\">"$PUBLISHER"</p>
+  <p class=\"date\">"$DATE"</p>
+</body>
+</html>" > $TPAGE
+echo "
+      Title page ready.
+
+"
+fi
+################# LaTeX configuration ##################
+if [ "$2" = "pdf" ]; then
+echo "
+
+      Select the fonts to use in the PDF file.
+                                     --------
+
+      You must specify at least one \"MainFont\".
+      A complete setup is:
+
+      \"RomanFont\" -- a serif font
+      \"SansFont\"  -- a sans-serif font
+      \"MonoFont\"  -- a monospaced font
+      \"MainFont\"  -- the primary font to use.
+
+"
+read -p "
+      Type the name of a serif font currently available.
+
+" RomanFont
+read -p "
+      Type the name of a sans-serif font currently installed.
+
+" SansFont
+read -p "
+      Type the name of a monospace font currently installed.
+
+" MonoFont
+read -p "
+      Which family will be used to typeset body text?
+      (r)oman (s)ans-serif or (m)onospaced
+
+" MainFont
+if [ -z "$RomanFont" ]; then
+RomanFont="PT Serif"
+fi
+if [ -z "$SansFont" ]; then
+SansFont="PT Sans"
+fi
+if [ -z "$MonoFont" ]; then
+MonoFont="PT Mono"
+fi
+if [ "$MainFont" = "m" ]; then
+MainFont=$MonoFont
+elif [ "$MainFont" = "s" ]; then
+MainFont=$SansFont
+else
+MainFont=$RomanFont
+fi
+echo "\usepackage{microtype}
+\usepackage[hang]{footmisc}
+\usepackage{pdfpages}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[LE,RO]{}
+\fancyhead[CO]{\textsc{\nouppercase{\small\leftmark}}}
+\fancyhead[CE]{\small $TITLE}
+\fancyhead[RE,LO]{}
+\fancyfoot[LO,RE]{}
+\fancyfoot[CE,CO]{}
+\fancyfoot[LE,RO]{\thepage}
+\setlength\headheight{15pt}
+\usepackage[Bjornstrup]{fncychap}
+\usepackage{nextpage}
+\renewcommand{\maketitle}{
+\thispagestyle{empty}
+\includepdf{"$WORKDIR"/cover.pdf}\cleartooddpage[\thispagestyle{empty}]
+\begin{titlepage}
+\centering\thispagestyle{empty}
+\newpage\bigskip\Huge "$TITLE"
+
+\bigskip\LARGE "$AUTHOR"
+\end{titlepage}\cleartooddpage[\thispagestyle{empty}]}
+" > $TEXCONFIG
+echo "
+
+      We have created a LaTeX configuration file at
+      "$TEXCONFIG", which will be used to
+      customize the appearance of the PDF file.
+      You can edit it to include your own code,  or
+      change our options.
+      If you make some mistakes you can't correct,
+      just delete "$TEXCONFIG" and run again
+      "$(basename $0) $1" to regenerate all config
+      files (for both PDF and e-books).
+
+"
+fi
+########################################################
+
+############### Folder cleaning option #################
+if [ "$1" == "clean" ]
+then
+echo "
+
+      Will now remove all e-books from current folder.
+      Press Control-C if you hit this by mistake.
+      Will ask you before removing any file.
+
+"
+rm -rf temp
+rm -f *.azw* *.epub *.mobi *.pdf *.lzma rm $CPAGE \
+$TPAGE $EBOOK $KINDLE
+exit 0
+fi
+########################################################
+
+################ Folder backup option ##################
+if [ "$1" = "backup" ]; then
+echo_err "
+
+      Usage: "$(basename $0)" md_file.md backup
+
+" exit 1
+fi
+if [ "$2" = "backup" ]; then
+echo "
+
+      Will pack working directory $WORKDIR
+      When the script exits, you'll find it
+      at "$(pwd)"/"$WORKDIR".tar.lzma
+
+      "
+sleep 3
+tar cfJ "$WORKDIR".tar.lzma "$WORKDIR"
+exit 0
+fi
+########################################################
+
+#################### Pandoc Settings ###################
+pandoc=$(pandoc -f markdown_phpextra+pandoc_title_block+autolink_bare_uris)
+########################################################
+
+################ PDF creation via LaTeX ################
+if [ "$2" = "pdf" ]; then
+echo "
+
+      Will try to compile PDF as required.
+
+"
+cd $WORKDIR
+cat ../"$CONTENT"/header.md ../"$CONTENT"/ch* | \
+$pandoc -s -S --latex-engine=lualatex -V fontsize:12pt
+-V documentclass:book -V classoption:twoside \
+-V geometry:a5paper -V lang:brazil -V mainfont:\""$MainFont\"" \
+-V sansfont:\""$SansFont"\" -V monofont:\""$MonoFont\"" \
+-V linkcolor:red -V urlcolor:blue -V citecolor:green \
+-V linksasnotes --include-in-header=../"$TEXCONFIG" \
+--toc --toc-depth=1 -o ../"$LATEX"
+cd ..
+lualatex "$LATEX"
+exit 0
+fi
+########################################################
+
+############ ePUB creation via Pandoc ##################
+if [ "$2" = "ebook" ]; then
+if [ "$EMBED" = "true" ]; then
+cat "$CONTENT"/ch* | $pandoc -S \
+--epub-cover-image=""$WORKDIR"/cover.jpg" \
+--epub-stylesheet="$CSS" --epub-embed-font="$FONT1" \
+--epub-embed-font="$FONT2" --epub-embed-font="$FONT3" \
+--epub-embed-font="$FONT4" --epub-metadata="$MDATA" \
+-o "$EBOOK" --toc
+else
+cat "$CONTENT"/ch* | $pandoc -S --epub-stylesheet="$CSS" \
+--epub-cover-image=""$WORKDIR"/cover.jpg" \
+--epub-metadata="$MDATA" -o "$EBOOK" --toc
+fi
+########################################################
+
+######### Adding custom cover and title pages ##########
+rm -rf .temp ; mkdir -p .temp
+unzip -q -u "$EBOOK" -d .temp
+cp -f "$TPAGE" "$CPAGE" "$CSS" .temp
+rm "$EBOOK" ; cd .temp ; zip -q -r ../"$EBOOK" *
+cd .. ; rm -rf .temp
+fi
+########################################################
+
+########### Converting and polishing ebooks ############
+if [ "$2" = "ebook" ]; then
+polish=$(which ebook-polish)
+if [ -n $polish ]; then
+$polish -u -p "$EBOOK" "$WORKDIR".epub
+fi
+fi
+if [ "$2" = "kindle" ]; then
+convert=$(which ebook-convert)
+if [ -n $convert ]; then
+$convert "$EBOOK" "$KINDLE"
+fi
+kindlegen=$(which kindlegen)
+if [ -n $kindlegen ]; then
+$kindlegen -c2 "$EBOOK"
+mv "$MOBI" "$WORKDIR".mobi
+fi
+if [ -n $polish ]; then
+$polish -u -p "$KINDLE" "$WORKDIR".azw3
+$polish -u -p "$KINDLE" "$WORKDIR".mobi
+fi
+fi
