@@ -33,9 +33,6 @@
 # kindlegen (OPTIONAL)                                 #
 ########################################################
 
-# License: GPL version 2, available from
-# https://www.gnu.org/licenses/gpl-2.0.html
-
 ############## Script requires one argument ############
 if [ -z "$1" ]
 then
@@ -72,6 +69,7 @@ fi
 
 ### Either way, we are going to need these variables ###
 CONTENT=$WORKDIR/pages
+FONTS=$WORKDIR/fonts
 CSS=$WORKDIR/stylesheet.css
 MDATA=$WORKDIR/metadata.xml
 TPAGE=$WORKDIR/title_page.xhtml
@@ -94,7 +92,8 @@ fi
 ######### It this is a setup run, build workdir ########
 if [ "$SETUP" = "true" ]
 then
-mkdir -p $CONTENT $FONTS
+mkdir -p $CONTENT
+mkdir -p $FONTS
 awk '/\#\ /{n++}{print >"ch" n ".md" }' $1
 cp $1 $WORKDIR/$1.bak
 rename 's/\d+/sprintf("%03d",$&)/e' ch*.md
@@ -340,7 +339,8 @@ echo "
 
       :Document title
 
-" exit 1
+"
+exit 1
 else
 echo "<dc:title>$TITLE</dc:title>
 <dc:language>$LANG</dc:language>
@@ -350,6 +350,9 @@ echo "<dc:title>$TITLE</dc:title>
 <dc:rights>$RIGHTS</dc:rights>
 " > "$MDATA"
 echo $(head -n 3 $1 > $CONTENT/header.md)
+if [ -z "$2" ]; then
+exit 0
+fi
 fi
 fi
 ########################################################
@@ -407,6 +410,24 @@ read -p "
 " coverfont
 if [ -z "$coverfont" ]; then
 coverfont="Helvetica, Arial, sans-serif"
+fi
+read -p "
+      Title font size in pixels
+" titlesize
+read -p "
+      Author font size in pixels
+" authorsize
+read -p "
+      URL font size in pixels
+" urlsize
+if [ -z "$titlesize" ]; then
+titlesize=40
+fi
+if [ -z "$authorsize" ]; then
+authorsize=30
+fi
+if [ -z "$urlsize" ]; then
+urlsize=20
 fi
 echo "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>
 <svg xmlns:dc=\"http://purl.org/dc/elements/1.1/\"
@@ -523,6 +544,8 @@ echo "
       Title page ready.
 
 "
+if [ -z "$2" ]; then
+exit 0
 fi
 ################# LaTeX configuration ##################
 if [ "$2" = "pdf" ]; then
