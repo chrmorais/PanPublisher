@@ -9,8 +9,10 @@ Requirements
 * Calibre -- to polish resulting ebooks
 * Inkscape -- to convert the raw SVG cover
 * TeXlive -- to output pdf (via luaLaTeX)
+* GGP -- for conditional processing (which is optional)
 * fontconfig -- to automagically identify embedded fonts
 * Image Magick -- to do some image conversions and to get image sizes
+* Standard unix tools (sed, awk, grep, cut, cat, head, etc.)
 
 Basic Features
 --------------
@@ -33,21 +35,26 @@ Basic Usage
 -----------
 1. Put the script in a place in your PATH
 2. Put your source document in a directory where you don't mind that a lot of garbage may be created (tip: do not use ~/Destkop or ~/).
-3. `panpublish document.md command` (in which "command" can be null, `cover`, `pdf`, `ebook` or `kindle`)
-4. null option recreates working directory, splits the source and regenerates some configuration
-5. `cover` option builds a basic SVG image, converts it to `.png`, `.pdf` and `.jpg` and generates `cover.xhtml`
-6. `pdf` generates a LaTeX source in the working directory and uses luaLaTeX to compile it
-7. `ebook` option generates an ePUB ebook (customised and polished)
-8. `kindle` option converts an existing ePUB ebook into `.mobi` and `.azw3`
-5. `panpublish clean` will remove from the current directory all *.pdf, *.epub, *.odt, *.azw*, *.mobi and *.tex files (very aggressive, use with extreme caution, but I have used "rm -i" to reduce damage).
+3. `panpublish options document.md` (in which "command" options can be
+* -x, --clean-output-dir   Removes output files in working directory
+* -f, --clean-output-files Removes output files in current directory
+* -d, --prepare-directory  Creates/updates working directory
+* -c, --cover              Creates/updates basic cover
+* -t, --texconfig          Creates/updates latex config for PDF
+* -p, --pdf                Creates/updates pdf document
+* -e, --epub               Creates/updates ePUB ebook
+* -k, --kindle             Converts ePUB to kindle formats
+* -m, --xhtml              Exports to basic xHTML
+* -o, --odt                Exports to OpenDocument
+* -u, --update-directory   Regenerates working directory
+* -b, --backup             Creates/recreates a backup of working directory
+* -h, --help               Shows this message
+* -l, --license            Shows license information
+* -D, --show-deps          Shows which software is used by this script
 
 Planned Features
 ----------------
-* Use GPP to process image inclusion with ImageMagick's identify to get proper sizes
 * Inclusion of copyright page
 * Inclusion of colophon page somewhere at the end
-* Font obfuscation
-* Using a custom latex template (must figure out how Pandoc chooses one, as I have not yet succeded in making it use my customised template).
+* Font subsetting and obfuscation
 * Better styled OpenDocument and HTML versions
-* Use getopts to process user input choices instead of relying on command-line arguments
-* Improved `.pdf` output incorporating some TeX hacks and black magic...
