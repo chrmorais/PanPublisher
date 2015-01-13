@@ -36,8 +36,7 @@ Basic Usage
 1. Put the script in a place in your PATH
 2. Put your source document in a directory where you don't mind that a lot of garbage may be created (tip: do not use ~/Destkop or ~/).
 3. `panpublish options document.md` (in which "command" options can be
-4. <ol type="a">
-<li>-x, --clean-output-dir   Removes output files in working directory</li>
+<ol type="b"><li>-x, --clean-output-dir   Removes output files in working directory</li>
 <li>-f, --clean-output-files Removes output files in current directory</li>
 <li>-d, --prepare-directory  Creates/updates working directory</li>
 <li>-c, --cover              Creates/updates basic cover</li>
