@@ -36,21 +36,22 @@ Basic Usage
 1. Put the script in a place in your PATH
 2. Put your source document in a directory where you don't mind that a lot of garbage may be created (tip: do not use ~/Destkop or ~/).
 3. `panpublish options document.md` (in which "command" options can be
-* -x, --clean-output-dir   Removes output files in working directory
-* -f, --clean-output-files Removes output files in current directory
-* -d, --prepare-directory  Creates/updates working directory
-* -c, --cover              Creates/updates basic cover
-* -t, --texconfig          Creates/updates latex config for PDF
-* -p, --pdf                Creates/updates pdf document
-* -e, --epub               Creates/updates ePUB ebook
-* -k, --kindle             Converts ePUB to kindle formats
-* -m, --xhtml              Exports to basic xHTML
-* -o, --odt                Exports to OpenDocument
-* -u, --update-directory   Regenerates working directory
-* -b, --backup             Creates/recreates a backup of working directory
-* -h, --help               Shows this message
-* -l, --license            Shows license information
-* -D, --show-deps          Shows which software is used by this script
+4. <ol type="a">
+<li>-x, --clean-output-dir   Removes output files in working directory</li>
+<li>-f, --clean-output-files Removes output files in current directory</li>
+<li>-d, --prepare-directory  Creates/updates working directory</li>
+<li>-c, --cover              Creates/updates basic cover</li>
+<li>-t, --texconfig          Creates/updates latex config for PDF</li>
+<li>-p, --pdf                Creates/updates pdf document</li>
+<li>-e, --epub               Creates/updates ePUB ebook</li>
+<li>-k, --kindle             Converts ePUB to kindle formats</li>
+<li>-m, --xhtml              Exports to basic xHTML</li>
+<li>-o, --odt                Exports to OpenDocument</li>
+<li>-u, --update-directory   Regenerates working directory</li>
+<li>-b, --backup             Creates/recreates a backup of working directory</li>
+<li>-h, --help               Shows this message</li>
+<li>-l, --license            Shows license information</li>
+<li>-D, --show-deps          Shows which software is used by this script</li></ol>
 
 Planned Features
 ----------------
