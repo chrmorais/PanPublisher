@@ -3,6 +3,8 @@ PanPublisher
 
 A simple BASH wrapper to export a Markdown source to PDF, ePUB, Kindle and more.
 
+Devlopment stalled for a while. Will resume soon.
+
 Requirements
 ------------
 * Pandoc (1.12 or newer) -- to export Markdown source
