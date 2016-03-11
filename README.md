@@ -3,7 +3,7 @@ PanPublisher
 
 A simple BASH wrapper to export a Markdown source to PDF, ePUB, Kindle and more.
 
-Devlopment stalled for a while. Will resume soon.
+Devlopment stalled for a while. The project is under rethinking and redesigning, as most of the functionality provided originally by the script is built-in to [my Markdown editor of choice](https://github.com/wereturtle/ghostwriter). 
 
 Requirements
 ------------
